@@ -1,0 +1,25 @@
+spring:
+  # Kafka настройки
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: user-service-group
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.type.mapping: "user:com.application.model.UserMessage"
+    listener:
+      ack-mode: manual
+      missing-topics-fatal: false  # Не падать, если топик не существует при старте
+
+# Kafka дополнительные настройки (опционально)
+kafka:
+  topics:
+    user-input: TEST.IN.TOPIC
+    user-dlq: TEST.IN.TOPIC.DLQ
+  consumer:
+    concurrency: 3
+    max-poll-records: 10
