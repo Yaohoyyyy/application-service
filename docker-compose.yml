@@ -7,8 +7,8 @@ services:
     container_name: rest-project-postgres
     environment:
       POSTGRES_DB: myapp_db
-      POSTGRES_USER: myapp_user
-      POSTGRES_PASSWORD: myapp_password
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     ports:
       - "5432:5432"
     volumes:
@@ -16,7 +16,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U myapp_user -d myapp_db"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d myapp_db"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -67,8 +67,8 @@ services:
     environment:
       # База данных
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/myapp_db
-      SPRING_DATASOURCE_USERNAME: myapp_user
-      SPRING_DATASOURCE_PASSWORD: myapp_password
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
 
       # Kafka
