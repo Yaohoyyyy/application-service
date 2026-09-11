@@ -28,7 +28,7 @@ public class CardController {
 
     @GetMapping("/{id}")
     public CardDto getCardById(@PathVariable Long id) {
-        return CardDto.fromEntity(cardService.getCardById(id));
+        return cardService.getCardDtoById(id);   // уже DTO из кэша/БД
     }
 
     @PostMapping
@@ -39,7 +39,7 @@ public class CardController {
 
     @PutMapping("/{id}")
     public CardDto updateCard(@PathVariable Long id, @Valid @RequestBody CardDto cardDto) {
-        return CardDto.fromEntity(cardService.updateCard(id, cardDto));
+        return cardService.updateCard(id, cardDto);   // уже DTO
     }
 
     @DeleteMapping("/{id}")
