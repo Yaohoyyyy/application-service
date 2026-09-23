@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
+import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -20,7 +21,7 @@ public class UserKafkaListener {
             topics = "TEST.IN.TOPIC",
             containerFactory = "kafkaListenerContainerFactory"
     )
-    public void listen(UserMessage userMessage, Acknowledgment acknowledgment) {
+    public void listen(@Payload UserMessage userMessage, Acknowledgment acknowledgment) {
         try {
             log.info("Received message from Kafka: firstName={}, lastName={}, email={}",
                     userMessage.getFirstName(), userMessage.getLastName(), userMessage.getEmail());

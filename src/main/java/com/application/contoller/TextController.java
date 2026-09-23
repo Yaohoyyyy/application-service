@@ -1,6 +1,9 @@
 package com.application.contoller;
 
 import com.application.model.TextRequest;
+import io.github.springwolf.bindings.kafka.annotations.KafkaAsyncOperationBinding;
+import io.github.springwolf.core.asyncapi.annotations.AsyncOperation;
+import io.github.springwolf.core.asyncapi.annotations.AsyncPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -17,6 +20,10 @@ public class TextController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.ACCEPTED)
+    @AsyncPublisher(operation = @AsyncOperation(
+            channelName = "TEST.OUT.TOPIC",
+            description = "Send text payload to the TEST.OUT.TOPIC Kafka topic"))
+    @KafkaAsyncOperationBinding
     public void sendText(@RequestBody TextRequest request) {
         log.info("Sending text to Kafka topic TEST.OUT.TOPIC: {}", request.text());
         kafkaTemplate.send("TEST.OUT.TOPIC", request.text());
