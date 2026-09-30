@@ -18,24 +18,27 @@
 - `docker compose up --build`
 
 ## Testing
-- **After any changes, run the AT project tests** at `D:\Work\Projects\AT`:
+- **After any changes, run the tests from this project only** (`restProject`) — no separate AT project:
   ```
-  cd D:\Work\Projects\AT
-  mvn test
+  ./mvnw test
   ```
-  The AT project sends HTTP requests to the running app (`localhost:8080`). Make sure the app is running before executing tests.
-- **Display the test results in the chat** — after running the AT tests, output the test results (which tests passed/failed) to the user in the chat.
-- **DO NOT modify files in the AT project** — the AT tests are the source of truth for validation. Only the user can change them.
-- Local unit tests in `src/test` are `@Disabled` — do not rely on them.
+  API tests live in `src/test/java/com/application/api/**` (JUnit 5 + RestAssured). They send HTTP requests to the **running app** (`localhost:8080`). Make sure the app is running before executing tests.
+- **Display the test results in the chat** — after running the tests, output which tests passed/failed to the user in the chat.
+- Settings for API tests (base URL, login/password of an `employees` record) live in `src/test/resources/api.properties`. Keep credentials in sync with the DB.
+- Local unit tests in `src/test` (e.g. `ApplicationTests`, `UserControllerTest`) are `@Disabled` — do not rely on them.
+- Surefire is configured in `pom.xml` to also pick up `**/api/**/*.java` test classes (which are not named `*Test`).
 
 ## Config
 - **Config lives in** `src/main/resources/application.properties` (DB, JPA, MongoDB, jur base-url, port) **and** `application.yml` (Kafka). Keep both in sync.
 - Root-level `application.properties` is a docker/env-var template — not on the classpath, not loaded by Spring.
 - `spring.jpa.hibernate.ddl-auto=update` — JPA manages schema automatically
+- `spring.grpc.server.port=9090` — gRPC Netty-сервер; REST остаётся на `server.port=8080`
 
 ## Known issues (do not reintroduce)
 1. **`spring-boot-starter-webmvc`** in `pom.xml` does not exist. Correct artifacts: `spring-boot-starter-web`, `spring-boot-starter-test` (note: `spring-boot-webmvc-test` at `pom.xml:100` currently exists and is used — verify before changing).
 2. **Package typo**: `com.application.contoller` — all Postgres-side controllers live under this misspelled package, do not "fix" without also moving existing files. Mongo controllers correctly use `com.application.mongo.controller`.
+3. **Groovy must be pinned to 4.0.22** (`<groovy.version>4.0.22</groovy.version>` in `pom.xml`). Spring Boot 4.1.0 BOM forces Groovy 5.0.6, which breaks rest-assured 5.5.7 — every GET request dies with `NullPointerException` at `ClosureMetaClass.invokeOnDelegationObject` (`Class.isAssignableFrom`). rest-assured only supports Groovy `[4.0,5.0)`. Do not remove the pin or bump Groovy.
+4. **Pre-existing bug, not introduced by gRPC**: `AuthService.login()` writes the JWT to `tokens` on every call, but `tokens.token` is UNIQUE and the JWT payload has only `sub` + `iat` (second precision). Two logins for the same employee within the same second therefore produce byte-identical tokens and the second one fails with a 400 `duplicate key value violates unique constraint`. Affects REST and gRPC alike. Fix by adding a unique claim (e.g. `jti`) to the JWT in `AuthService`, or by making the token save an upsert. Not fixed here because it changes existing REST behaviour.
 
 ## Fixed issues
 - `@Valid` was missing on `@RequestBody` in `UserController` — added
@@ -93,6 +96,16 @@
 | POST | `/api/text` | no | Send text to `TEST.OUT.TOPIC` (`{"text":"..."}`) |
 
 - Swagger UI: `/swagger-ui.html` (springdoc)
+
+## gRPC (добавлено параллельно с REST, REST не удалён)
+- Контракт: `src/main/proto/auth.proto` (сервис `application.auth.v1.AuthService`, rpc `Login`)
+- Реализация: `com.application.grpc.auth.AuthGrpcService` (`@Service`, extends `AuthServiceImplBase`) — делегирует в существующий `com.application.service.AuthService`, логика не дублируется
+- Нативный gRPC-сервер (Netty) на `spring.grpc.server.port=9090`, поднят Spring Boot 4 стартером `spring-boot-starter-grpc-server` (версия из BOM). Стабы генерируются `io.github.ascopes:protobuf-maven-plugin` (тоже из BOM) в `target/generated-sources/protobuf`
+- Reflection включён (`spring.grpc.server.reflection.enabled=true`) — работает grpcurl
+- Ошибка логина отдаётся как `Status.INVALID_ARGUMENT` с `withDescription(ex.getMessage())` — тот же текст, что REST отдаёт в `{"message": ...}`
+- **Envoy обязателен для браузера**: `envoy.yaml` (docker, upstream `app:9090`) и `envoy.host.yaml` (приложение на хосте, upstream `host.docker.internal:9090`). Слушает `:8081`, фильтры `cors` + `grpc_web` + `router`, маршрут `/grpc/` с `prefix_rewrite: "/"`. В compose добавлен сервис `envoy`
+- Локальный запуск приложения на хосте: `docker run -d -p 8081:8081 -p 9901:9901 -v <путь>/envoy.host.yaml:/etc/envoy/envoy.yaml:ro envoyproxy/envoy:v1.34-latest`
+- В `envoy.yaml` кластер — `type: STRICT_DNS` (обязательно для hostname, иначе Envoy падает с `malformed IP address`), а не `STATIC`. CORS задан через `typed_per_filter_config` + `CorsPolicy`, HTTP/2 — через `typed_extension_protocol_options`; старые `VirtualHost.cors` и `Cluster.http2_protocol_options` в Envoy 1.34 deprecated
 
 ## Auth
 - `POST /api/auth/login` returns a JWT token if login+password match an `employees` record
