@@ -18,15 +18,15 @@
 - `docker compose up --build`
 
 ## Testing
-- **After any changes, run the AT project tests** at `D:\Work\Projects\AT`:
+- **After any changes, run the tests from this project only** (`restProject`) — no separate AT project:
   ```
-  cd D:\Work\Projects\AT
-  mvn test
+  ./mvnw test
   ```
-  The AT project sends HTTP requests to the running app (`localhost:8080`). Make sure the app is running before executing tests.
-- **Display the test results in the chat** — after running the AT tests, output the test results (which tests passed/failed) to the user in the chat.
-- **DO NOT modify files in the AT project** — the AT tests are the source of truth for validation. Only the user can change them.
-- Local unit tests in `src/test` are `@Disabled` — do not rely on them.
+  API tests live in `src/test/java/com/application/api/**` (JUnit 5 + RestAssured). They send HTTP requests to the **running app** (`localhost:8080`). Make sure the app is running before executing tests.
+- **Display the test results in the chat** — after running the tests, output which tests passed/failed to the user in the chat.
+- Settings for API tests (base URL, login/password of an `employees` record) live in `src/test/resources/api.properties`. Keep credentials in sync with the DB.
+- Local unit tests in `src/test` (e.g. `ApplicationTests`, `UserControllerTest`) are `@Disabled` — do not rely on them.
+- Surefire is configured in `pom.xml` to also pick up `**/api/**/*.java` test classes (which are not named `*Test`).
 
 ## Config
 - **Config lives in** `src/main/resources/application.properties` (DB, JPA, MongoDB, jur base-url, port) **and** `application.yml` (Kafka). Keep both in sync.
@@ -36,6 +36,7 @@
 ## Known issues (do not reintroduce)
 1. **`spring-boot-starter-webmvc`** in `pom.xml` does not exist. Correct artifacts: `spring-boot-starter-web`, `spring-boot-starter-test` (note: `spring-boot-webmvc-test` at `pom.xml:100` currently exists and is used — verify before changing).
 2. **Package typo**: `com.application.contoller` — all Postgres-side controllers live under this misspelled package, do not "fix" without also moving existing files. Mongo controllers correctly use `com.application.mongo.controller`.
+3. **Groovy must be pinned to 4.0.22** (`<groovy.version>4.0.22</groovy.version>` in `pom.xml`). Spring Boot 4.1.0 BOM forces Groovy 5.0.6, which breaks rest-assured 5.5.7 — every GET request dies with `NullPointerException` at `ClosureMetaClass.invokeOnDelegationObject` (`Class.isAssignableFrom`). rest-assured only supports Groovy `[4.0,5.0)`. Do not remove the pin or bump Groovy.
 
 ## Fixed issues
 - `@Valid` was missing on `@RequestBody` in `UserController` — added
