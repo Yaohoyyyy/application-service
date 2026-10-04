@@ -64,6 +64,7 @@ services:
         condition: service_started
     ports:
       - "8080:8080"
+      - "9090:9090"
     environment:
       # База данных
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/myapp_db
@@ -78,6 +79,23 @@ services:
 
       # Логирование
       LOGGING_LEVEL_ROOT: INFO
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # gRPC-Web -> gRPC прокси для браузера.
+  # Фронтенд (ui) ходит на :8081, Envoy — на gRPC-порт приложения :9090.
+  envoy:
+    image: envoyproxy/envoy:v1.34-latest
+    container_name: rest-project-envoy
+    depends_on:
+      app:
+        condition: service_started
+    ports:
+      - "8081:8081"
+      - "9901:9901"
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml:ro
     networks:
       - app-network
     restart: unless-stopped
