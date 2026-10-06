@@ -3,7 +3,11 @@ package com.application.service;
 import com.application.entity.Vendor;
 import com.application.model.VendorDto;
 import com.application.repository.VendorRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.core.HazelcastJsonValue;
 import com.hazelcast.map.IMap;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,6 +25,7 @@ public class VendorService {
     private final VendorRepository vendorRepository;
     private final HazelcastInstance hazelcastInstance;
     private final long ttlSeconds;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public VendorService(VendorRepository vendorRepository,
                          HazelcastInstance hazelcastInstance,
@@ -34,14 +39,44 @@ public class VendorService {
         return hazelcastInstance.getMap(CACHE_NAME);
     }
 
-    /** Кидаем значение в кэш с TTL (время жизни задаётся на каждый entry). */
+    /**
+     * Кидаем значение в кэш с TTL (время жизни задаётся на каждый entry).
+     * Значение хранится как JSON (HazelcastJsonValue), чтобы мапа была видна через SQL
+     * (CREATE OR REPLACE MAPPING vendors ... valueFormat 'json').
+     */
     private void cache(String key, Object value) {
-        vendors().put(key, value, ttlSeconds, TimeUnit.SECONDS);
+        try {
+            String json = objectMapper.writeValueAsString(value);
+            vendors().put(key, new HazelcastJsonValue(json), ttlSeconds, TimeUnit.SECONDS);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to serialize vendor data for cache", e);
+        }
     }
 
-    @SuppressWarnings("unchecked")
+    private VendorDto cachedVendor(Object value) {
+        if (!(value instanceof HazelcastJsonValue jsonValue)) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(jsonValue.toString(), VendorDto.class);
+        } catch (JsonProcessingException e) {
+            return null; // битые данные в кэше -> cache-miss, пойдём в БД
+        }
+    }
+
+    private List<VendorDto> cachedVendorList(Object value) {
+        if (!(value instanceof HazelcastJsonValue jsonValue)) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(jsonValue.toString(), new TypeReference<List<VendorDto>>() {});
+        } catch (JsonProcessingException e) {
+            return null; // битые данные в кэше -> cache-miss, пойдём в БД
+        }
+    }
+
     public List<VendorDto> getAllVendors() {
-        List<VendorDto> cached = (List<VendorDto>) vendors().get(ALL_KEY);
+        List<VendorDto> cached = cachedVendorList(vendors().get(ALL_KEY));
         if (cached != null) {
             return cached;
         }
@@ -52,7 +87,7 @@ public class VendorService {
 
     public VendorDto getVendorById(Long id) {
         String key = String.valueOf(id);
-        VendorDto cached = (VendorDto) vendors().get(key);
+        VendorDto cached = cachedVendor(vendors().get(key));
         if (cached != null) {
             return cached;
         }
