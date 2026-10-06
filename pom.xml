@@ -121,6 +121,13 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-cache</artifactId>
         </dependency>
+        <!-- Hazelcast (клиент к docker-контейнеру hazelcast:5.7.0).
+             BOM форсит 5.5.0 — недопустимо: Java-клиент должен совпадать с версией сервера (5.7.0). -->
+        <dependency>
+            <groupId>com.hazelcast</groupId>
+            <artifactId>hazelcast</artifactId>
+            <version>5.7.0</version>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
